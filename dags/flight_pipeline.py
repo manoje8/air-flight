@@ -3,6 +3,8 @@ from datetime import timedelta, datetime
 from pathlib import Path
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from tornado.process import task_id
+
 
 AIRFLOW_HOME = Path("/opt/airflow")
 
@@ -12,6 +14,8 @@ if str(AIRFLOW_HOME) not in sys.path:
 from scripts.bronze_layer import run_bronze_ingestion
 from scripts.silver_layer import run_silver_transform
 from scripts.gold_layer import run_gold_layer
+from scripts.snowflake_conn import snowflake_load
+
 
 default_args = {
     "owner": "airflow",
@@ -42,4 +46,9 @@ with DAG(
         python_callable=run_gold_layer
     )
 
-    bronze >> silver >> gold
+    snowflake = PythonOperator(
+        task_id="snowflake_load",
+        python_callable=snowflake_load
+    )
+
+    bronze >> silver >> gold >> snowflake
