@@ -1,0 +1,6 @@
+# Core pipeline dependencies
+pandera>=0.18.0
+
+# Testing dependencies
+pytest>=8.0.0
+pytest-mock>=3.12.0
