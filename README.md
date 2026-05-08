@@ -7,10 +7,9 @@ The pipeline ingests flight data, performs transformations, and loads it into a 
 
 1. Architecture Overview
 
-┌─────────┐   ┌────────────────┐   ┌──────────────┐  
-│ Flight  │ → │  Airflow       │ → │  Data        │ 
-│ Data    │   │ (Orchestration)│   │ Warehouse    │
-└─────────┘   └────────────────┘   └──────────────┘
+
+│ Flight Data │ → │  Airflow  (Orchestration)  │ → │  Data Warehouse  │
+
 
 2. Prerequisites
 

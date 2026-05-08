@@ -1,3 +1,8 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
 .venv/
 .env
 .idea
@@ -6,3 +11,8 @@ data/
 logs/
 todo.md
 plans.md
+implementations.md
+
+dbt_packages/
+.pytest_cache/
+

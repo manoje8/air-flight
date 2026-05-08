@@ -1,0 +1,34 @@
+name: 'flight_analytics'
+version: '0.0.1'
+config-version: 2
+
+profile: 'flight_analytics'
+
+model-paths: ['models']
+analysis-paths: ['analyses']
+test-paths: ['tests']
+seed-paths: ['seeds']
+macro-paths: ['macros']
+snapshot-paths: ['snapshots']
+
+clean-targets:
+  - 'target'
+  - 'dbt_packages'
+
+models:
+  flight_analytics:
+    bronze:
+      +materialized: view
+      +schema: bronze
+      +tags: ['bronze']
+    silver:
+      +materialized: view
+      +schema: silver
+      +tags: [ 'silver' ]
+    gold:
+      +materialized: view
+      +schema: gold
+      +tags: [ 'gold' ]
+
+vars:
+  'dbt_date:time_zone': UTC

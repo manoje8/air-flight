@@ -1,5 +1,7 @@
 # Core pipeline dependencies
 pandera>=0.18.0
+dotenv
+dbt-snowflake>=1.8.0
 
 # Testing dependencies
 pytest>=8.0.0
