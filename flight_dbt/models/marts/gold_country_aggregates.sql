@@ -1,0 +1,13 @@
+-- Gold model: Aggregated flight statistics per country
+WITH silver AS (
+    SELECT *
+    FROM {{ ref('silver_flights') }}
+)
+SELECT
+    WINDOW_START,
+    ORIGIN_COUNTRY,
+    COUNT(ICAO24) AS TOTAL_FLIGHTS,
+    AVG(VELOCITY) AS AVG_VELOCITY,
+    SUM(CASE WHEN ON_GROUND THEN 1 ELSE 0 END) AS ON_GROUND_COUNT
+FROM silver
+GROUP BY WINDOW_START, ORIGIN_COUNTRY

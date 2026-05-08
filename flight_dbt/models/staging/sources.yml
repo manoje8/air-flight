@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: flight_schema
+    database: FLIGHTS
+    schema: FLIGHT_SCHEMA
+    tables:
+      - name: FLIGHT_BRONZE

@@ -6,3 +6,7 @@ data/
 logs/
 todo.md
 plans.md
+implementations.md
+
+dbt_packages/
+.pytest_cache/

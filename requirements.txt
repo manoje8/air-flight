@@ -1,5 +1,8 @@
 # Core pipeline dependencies
 pandera>=0.18.0
+snowflake-connector-python[pandas]>=3.0.0
+dbt-core>=1.7.0
+dbt-snowflake>=1.7.0
 
 # Testing dependencies
 pytest>=8.0.0
