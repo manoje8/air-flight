@@ -113,7 +113,7 @@ SILVER_SCHEMA = DataFrameSchema(
 )
 
 
-def run_quality_check(**context):
+def run_quality_check(silver_file: str, **context) -> str:
     """
     Validate the Silver CSV against the SILVER_SCHEMA.
 
@@ -121,16 +121,6 @@ def run_quality_check(**context):
         pa.errors.SchemaError  — fails the DAG task if any check is violated.
         ValueError             — if Silver file path is missing from XCom.
     """
-    silver_file = context["ti"].xcom_pull(
-        key="silver_file",
-        task_ids="silver_transform",
-    )
-
-    if not silver_file:
-        raise ValueError(
-            "Silver file path not found in XCom. "
-            "Ensure silver_transform completed successfully."
-        )
 
     logger.info("Running data quality checks on: %s", silver_file)
 
@@ -170,24 +160,15 @@ def run_quality_check(**context):
             null_pos_airborne,
         )
 
-    context["ti"].xcom_push(
-        key="quality_report",
-        value={
-            "row_count": len(validated_df),
-            "null_icao24": int(null_icao),
-            "null_latitude": int(null_lat),
-            "null_longitude": int(null_lon),
-        },
-    )
+    report = {
+        "row_count": len(validated_df),
+        "null_icao24": int(validated_df["icao24"].isna().sum()),
+        "null_latitude": int(validated_df["latitude"].isna().sum()),
+        "null_longitude": int(validated_df["longitude"].isna().sum()),
+        "null_position_ground": int(validated_df[on_ground_mask]["latitude"].isna().sum()),
+        "null_position_airborne": null_pos_airborne,
+    }
 
-    context["ti"].xcom_push(
-        key="quality_report",
-        value={
-            "row_count": len(validated_df),
-            "null_icao24": null_icao,
-            "null_latitude": null_lat,
-            "null_longitude": null_lon,
-            "null_position_ground": null_pos_ground,
-            "null_position_airborne": null_pos_airborne,
-        },
-    )
+    logger.info("Quality check report: %s", report)
+
+    return report

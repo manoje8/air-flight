@@ -78,3 +78,6 @@ Docker not starting:
 Airflow UI not accessible:
   * Wait for Airflow to initialize (may take 1-2 minutes)
   * Check Airflow logs: docker-compose logs airflow-webserver
+
+
+![alt text](image.png)

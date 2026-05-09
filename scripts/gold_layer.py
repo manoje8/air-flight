@@ -2,11 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-def run_gold_layer(**context):
-    silver_file = context['ti'].xcom_pull(
-        key='silver_file',
-        task_ids='silver_transform'
-    )
+def run_gold_layer( silver_file: str, **context) -> str:
 
     df = pd.read_csv(silver_file)
 
@@ -25,7 +21,4 @@ def run_gold_layer(**context):
 
     agg.to_csv(gold_path, index=False)
 
-    context['ti'].xcom_push(
-        key="gold_file",
-        value=str(gold_path)
-    )
+    return str(gold_path)

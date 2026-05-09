@@ -1,4 +1,3 @@
--- models/gold/gold_country_daily_summary.sql
 {{
   config(
     materialized='table',

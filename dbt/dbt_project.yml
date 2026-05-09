@@ -1,19 +1,19 @@
 name: 'flight_analytics'
-version: '0.0.1'
+version: '1.0.0'
 config-version: 2
 
 profile: 'flight_analytics'
 
-model-paths: ['models']
-analysis-paths: ['analyses']
-test-paths: ['tests']
-seed-paths: ['seeds']
-macro-paths: ['macros']
-snapshot-paths: ['snapshots']
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
 
 clean-targets:
-  - 'target'
-  - 'dbt_packages'
+  - "target"
+  - "dbt_packages"
 
 models:
   flight_analytics:
@@ -22,13 +22,13 @@ models:
       +schema: bronze
       +tags: ['bronze']
     silver:
-      +materialized: view
+      +materialized: table
       +schema: silver
-      +tags: [ 'silver' ]
+      +tags: ['silver']
     gold:
-      +materialized: view
+      +materialized: table
       +schema: gold
-      +tags: [ 'gold' ]
+      +tags: ['gold']
 
 vars:
-  'dbt_date:time_zone': UTC
+  'dbt_date:time_zone': 'UTC'

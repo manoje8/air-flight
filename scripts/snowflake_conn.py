@@ -9,7 +9,7 @@ from utils.snowflake_loader import SnowflakeLoader
 
 logger = logging.getLogger(__name__)
 
-def snowflake_load(**context):
+def snowflake_load(bronze_file: str, silver_file: str, gold_file: str, **context):
     """
     Airflow task: Snowflake loader using batch operations.
     Loads Bronze, Silver, and Gold layers efficiently.
@@ -23,6 +23,8 @@ def snowflake_load(**context):
 
     exec_date = context['data_interval_start'].strftime("%Y-%m-%d %H:%M:%S")
     ingestion_branch = f"airflow-{context['dag_run'].run_id}"
+    
+    bronze_rows = silver_rows = gold_rows = 0
 
     loader = SnowflakeLoader()
     loader.setup_tables()
@@ -45,9 +47,9 @@ def snowflake_load(**context):
         gold_rows = loader.load_gold_batch(gold_df, exec_date)
         logger.info(f"Gold layer loaded: {gold_rows} rows merged")
 
-    ti.xcom_push('snowflake_metric', value={
-        'bronze_rows': bronze_rows if bronze_file else 0,
-        'silver_rows': silver_rows if silver_file else 0,
-        'gold_rows': gold_rows if gold_file else 0,
-        'timestamp': exec_date
-    })
+    return {
+        "bronze_rows": bronze_rows,
+        "silver_rows": silver_rows,
+        "gold_rows": gold_rows,
+        "timestamp": exec_date,
+    }

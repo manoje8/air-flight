@@ -107,8 +107,14 @@ class SnowflakeLoader:
 
             # Create staging table
             cursor.execute("""
-                CREATE TRANSIENT TABLE IF NOT EXISTS FLIGHTS.FLIGHT_SCHEMA.STG_GOLD_FLIGHT_AGG
-                LIKE FLIGHTS.FLIGHT_SCHEMA.GOLD_FLIGHT_AGG
+                CREATE TRANSIENT TABLE IF NOT EXISTS FLIGHTS.FLIGHT_SCHEMA.STG_GOLD_FLIGHT_AGG (
+                    WINDOW_START TIMESTAMP_NTZ,
+                    ORIGIN_COUNTRY VARCHAR(50),
+                    TOTAL_FLIGHTS INTEGER,
+                    AVG_VELOCITY FLOAT,
+                    ON_GROUND_SUM INTEGER,
+                    LOAD_TIME TIMESTAMP_NTZ
+            )
             """)
 
 

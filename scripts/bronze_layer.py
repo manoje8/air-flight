@@ -11,7 +11,7 @@ OPEN_SKY_NETWORK_URI = "https://opensky-network.org/api/states/all"
 logger = logging.getLogger(__name__)
 
 
-def run_bronze_ingestion(**context):
+def run_bronze_ingestion(**context) -> str:
     """
     Ingest raw flight state data from the OpenSky Network API into the Bronze layer.
 
@@ -56,4 +56,4 @@ def run_bronze_ingestion(**context):
         json.dump(data, f)
 
     logger.info("Bronze file written: %s", path)
-    context["ti"].xcom_push(key="bronze_file", value=str(path))
+    return str(path)
