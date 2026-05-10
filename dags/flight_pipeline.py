@@ -35,6 +35,11 @@ _SNOWFLAKE_ENV = {
     "SNOWFLAKE_SCHEMA":     os.getenv("SNOWFLAKE_SCHEMA", ""),
 }
 
+_DBT_ENV = {
+    **_SNOWFLAKE_ENV,
+    "PATH": "/home/airflow/.local/bin:/usr/local/bin:/usr/bin:/bin",
+}
+
 
 
 profile_config = ProfileConfig(
@@ -124,10 +129,6 @@ def flight_pipeline():
             raise ValueError("Quality check reported zero rows — aborting gold layer.")
         return run_gold_layer(silver_file=silver_file, **context)
     
-    _DBT_ENV = {
-        **_SNOWFLAKE_ENV,
-        "PATH": "/home/airflow/.local/bin:/usr/local/bin:/usr/bin:/bin",
-    }
     
     @task(trigger_rule=TriggerRule.ALL_SUCCESS)
     def snapshot(**context):

@@ -2,25 +2,33 @@
     config(materialized='view', tags=['bronze', 'source'])
 }}
 
--- View on top of raw Bronze table
--- Parses JSON and extracts timestamps
+-- View on top of raw Bronze table.
+-- The OpenSky API returns states as a list of arrays (positional fields, not named keys).
+-- We use LATERAL FLATTEN to explode each state row, then access fields by array index.
+-- OpenSky state vector field order (17 elements):
+--   [0] icao24, [1] callsign, [2] origin_country, [3] time_position, [4] last_contact,
+--   [5] longitude, [6] latitude, [7] velocity, [8] on_ground, [9] true_track,
+--   [10] vertical_rate, [11] sensors, [12] baro_altitude, [13] squawk,
+--   [14] spi, [15] position_source, [16] geo_altitude
 
 SELECT
-    INGESTION_TIME,
-    RAW_DATA:icao24::VARCHAR AS icao24,
-    RAW_DATA:origin_country::VARCHAR AS origin_country,
-    RAW_DATA:latitude::FLOAT AS latitude,
-    RAW_DATA:longitude::FLOAT AS longitude,
-    RAW_DATA:time_position::TIMESTAMP AS time_position,
-    RAW_DATA:last_contact::TIMESTAMP AS last_contact,
-    RAW_DATA:velocity::FLOAT AS velocity,
-    RAW_DATA:vertical_rate::FLOAT AS vertical_rate,
-    RAW_DATA:true_track::FLOAT AS true_track,
-    RAW_DATA:baro_altitude::FLOAT AS baro_altitude,
-    RAW_DATA:geo_altitude::FLOAT AS geo_altitude,
-    RAW_DATA:on_ground::BOOLEAN AS on_ground,
-    SOURCE_FILE,
-    INGESTION_BATCH
+    src.INGESTION_TIME,
+    f.value[0]::VARCHAR          AS ICAO24,
+    f.value[2]::VARCHAR          AS ORIGIN_COUNTRY,
+    f.value[6]::FLOAT            AS LATITUDE,
+    f.value[5]::FLOAT            AS LONGITUDE,
+    TO_TIMESTAMP(f.value[3]::INTEGER) AS TIME_POSITION,
+    TO_TIMESTAMP(f.value[4]::INTEGER) AS LAST_CONTACT,
+    f.value[7]::FLOAT            AS VELOCITY,
+    f.value[10]::FLOAT           AS VERTICAL_RATE,
+    f.value[9]::FLOAT            AS TRUE_TRACK,
+    f.value[12]::FLOAT           AS BARO_ALTITUDE,
+    f.value[16]::FLOAT           AS GEO_ALTITUDE,
+    f.value[8]::BOOLEAN          AS ON_GROUND,
+    src.SOURCE_FILE,
+    src.INGESTION_BATCH
 
-FROM {{source('bronze', 'BRONZE_FLIGHTS')}}
-WHERE RAW_DATA IS NOT NULL
+FROM {{source('bronze', 'BRONZE_FLIGHTS')}} src,
+LATERAL FLATTEN(input => src.RAW_DATA:states) f
+WHERE src.RAW_DATA IS NOT NULL
+  AND src.RAW_DATA:states IS NOT NULL
