@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: gold
+    database: FLIGHTS
+    schema: FLIGHT_SCHEMA
+    tables:
+      - name: SILVER_FLIGHTS
+      - name: GOLD_FLIGHT_AGG

@@ -22,5 +22,5 @@ SELECT
     SOURCE_FILE,
     INGESTION_BATCH
 
-FROM {{ref('bronze_flights')}}
+FROM {{source('bronze', 'BRONZE_FLIGHTS')}}
 WHERE RAW_DATA IS NOT NULL

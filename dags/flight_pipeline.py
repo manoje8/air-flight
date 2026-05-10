@@ -9,7 +9,8 @@ from airflow.operators.python import PythonOperator
 from airflow.operators.bash import BashOperator
 from airflow.models import Variable
 from airflow.utils.trigger_rule import TriggerRule
-
+from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig, RenderConfig
+from cosmos.profiles import SnowflakeUserPasswordProfileMapping
 
 AIRFLOW_HOME = Path("/opt/airflow")
 
@@ -24,19 +25,63 @@ from scripts.snowflake_conn import snowflake_load
 from scripts.snowflake_backup import create_snapshot
 
 
-def     on_failure_callback(context):
+_SNOWFLAKE_ENV = {
+    "SNOWFLAKE_ACCOUNT":    os.getenv("SNOWFLAKE_ACCOUNT", ""),
+    "SNOWFLAKE_USER":       os.getenv("SNOWFLAKE_USER", ""),
+    "SNOWFLAKE_PASSWORD":   os.getenv("SNOWFLAKE_PASSWORD", ""),
+    "SNOWFLAKE_ROLE":       os.getenv("SNOWFLAKE_ROLE", ""),
+    "SNOWFLAKE_DATABASE":   os.getenv("SNOWFLAKE_DATABASE", ""),
+    "SNOWFLAKE_WAREHOUSE":  os.getenv("SNOWFLAKE_WAREHOUSE", ""),
+    "SNOWFLAKE_SCHEMA":     os.getenv("SNOWFLAKE_SCHEMA", ""),
+}
+
+
+
+profile_config = ProfileConfig(
+    profile_name="flight_analytics",
+    target_name="dev",
+    profile_mapping=SnowflakeUserPasswordProfileMapping(
+        conn_id=os.getenv("SNOWFLAKE_CONN_ID"),
+        profile_args={
+            "database": os.getenv("SNOWFLAKE_DATABASE"),
+            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+            "role": os.getenv("SNOWFLAKE_ROLE"),
+        },
+    ),
+)
+
+project_config = ProjectConfig(
+    dbt_project_path="/opt/airflow/dbt",
+)
+
+execution_config = ExecutionConfig(
+    dbt_executable_path="/home/airflow/.local/bin/dbt",
+)
+
+render_config = RenderConfig(
+    select=["tag:gold"]
+)
+
+
+def on_failure_callback(context):
     from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
+    from airflow.exceptions import AirflowNotFoundException
     msg = (
         f":red_circle: DAG *{context['dag'].dag_id}* failed.\n"
         f"Task: `{context['task_instance'].task_id}`\n"
         f"Run: `{context['run_id']}`\n"
         f"Log: {context['task_instance'].log_url}"
     )
-    SlackWebhookOperator(
-        task_id="slack_alert",
-        slack_webhook_conn_id="slack_default",
-        message=msg,
-    ).execute(context)
+
+    try:
+        SlackWebhookOperator(
+            task_id="slack_alert",
+            slack_webhook_conn_id="slack_default",
+            message=msg,
+        ).execute(context)
+    except AirflowNotFoundException:
+        print("WARNING: slack_default connection not configured — skipping Slack alert")
 
 
 default_args = {
@@ -79,6 +124,11 @@ def flight_pipeline():
             raise ValueError("Quality check reported zero rows — aborting gold layer.")
         return run_gold_layer(silver_file=silver_file, **context)
     
+    _DBT_ENV = {
+        **_SNOWFLAKE_ENV,
+        "PATH": "/home/airflow/.local/bin:/usr/local/bin:/usr/bin:/bin",
+    }
+    
     @task(trigger_rule=TriggerRule.ALL_SUCCESS)
     def snapshot(**context):
         return create_snapshot(**context)
@@ -88,42 +138,34 @@ def flight_pipeline():
         return snowflake_load(bronze_file=bronze_file, silver_file=silver_file, gold_file=gold_file, **context)
     
 
-    # TODO: Fix dbt tasks for gold layer transformations and testing
-    # dbt_run = BashOperator(
-    #     task_id="dbt_run",
-    #     bash_command="""
-    #         echo "Current directory: $(pwd)"
-    #         echo "Checking dbt project files:"
-    #         ls -la /opt/airflow/dbt/
-    #         echo "Running dbt..."
-    #         cd /opt/airflow/dbt && \
-    #         dbt run \
-    #         --select tag:gold \
-    #         --target dev \
-    #         --profiles-dir /opt/airflow/dbt \
-    #         --project-dir /opt/airflow/dbt
-    #     """,
-    #     env={
-    #         "SNOWFLAKE_ACCOUNT": os.getenv("SNOWFLAKE_ACCOUNT", ""),
-    #         "SNOWFLAKE_USER": os.getenv("SNOWFLAKE_USER", ""),
-    #         "SNOWFLAKE_PASSWORD": os.getenv("SNOWFLAKE_PASSWORD", ""),
-    #         "SNOWFLAKE_ROLE": os.getenv("SNOWFLAKE_ROLE", ""),
-    #         "SNOWFLAKE_DATABASE": os.getenv("SNOWFLAKE_DATABASE", ""),
-    #         "SNOWFLAKE_WAREHOUSE": os.getenv("SNOWFLAKE_WAREHOUSE", ""),
-    #         "SNOWFLAKE_SCHEMA": os.getenv("SNOWFLAKE_SCHEMA", ""),
-    #     },
-    # )
 
-    # dbt_test = BashOperator(
-    #     task_id="dbt_test",
-    #     bash_command="""
-    #         cd /opt/airflow/dbt && \
-    #         dbt test \
-    #         --select tag:gold \
-    #         --target dev \
-    #         --profiles-dir /opt/airflow/dbt
-    #     """,
-    # )
+    bronze_run = DbtTaskGroup(
+        group_id="bronze_run",
+        project_config=project_config,
+        profile_config=profile_config,
+        execution_config=execution_config,
+        operator_args={"install_deps": True, "env": _DBT_ENV},
+        render_config=RenderConfig(select=["tag:bronze"])
+    )
+
+    silver_run = DbtTaskGroup(
+        group_id="silver_run",
+        project_config=project_config,
+        profile_config=profile_config,
+        execution_config=execution_config,
+        operator_args={"install_deps": True, "env": _DBT_ENV},
+        render_config=RenderConfig(select=["tag:silver"])
+    )
+
+    dbt_run = DbtTaskGroup(
+        group_id="gold_run",
+        project_config=project_config,
+        profile_config=profile_config,
+        execution_config=execution_config,
+        operator_args={"install_deps": True, "env": _DBT_ENV},
+        render_config=RenderConfig(select=["tag:gold"])
+    )
+    
     
     bronze_file = bronze()
     silver_file = silver(bronze_file)
@@ -131,7 +173,7 @@ def flight_pipeline():
     gold_file = gold(silver_file, quality_report)
     snapshot_ts = snapshot()
 
-    gold_file >> snapshot_ts
+    gold_file >> bronze_run >> silver_run >> dbt_run >> snapshot_ts
     load(bronze_file, silver_file, gold_file) << snapshot_ts
 
 
