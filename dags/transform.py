@@ -1,28 +1,30 @@
-import sys
+"""
+Silver transform → DataQualityOperator gate → Gold layer → dbt runs.
+Receives ``bronze_file`` from ingest_dag via DagRun conf.
+"""
 import os
-from datetime import timedelta, datetime
+import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.decorators import dag, task
-from airflow.operators.python import PythonOperator
-from airflow.operators.bash import BashOperator
 from airflow.models import Variable
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.decorators import dag, task
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
 from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig, RenderConfig
 from cosmos.profiles import SnowflakeUserPasswordProfileMapping
+
 
 AIRFLOW_HOME = Path("/opt/airflow")
 
 if str(AIRFLOW_HOME) not in sys.path:
     sys.path.insert(0, str(AIRFLOW_HOME))
 
-from scripts.bronze_layer import run_bronze_ingestion
-from scripts.silver_layer import run_silver_transform
+from scripts.failure_callback import on_failure_callback
 from scripts.quality_checks import run_quality_check
+from scripts.silver_layer import run_silver_transform
 from scripts.gold_layer import run_gold_layer
-from scripts.snowflake_conn import snowflake_load
-from scripts.snowflake_backup import create_snapshot
+from dags.data_quality import DataQualityOperator
 
 
 _SNOWFLAKE_ENV = {
@@ -41,7 +43,6 @@ _DBT_ENV = {
 }
 
 
-
 profile_config = ProfileConfig(
     profile_name="flight_analytics",
     target_name="dev",
@@ -55,39 +56,9 @@ profile_config = ProfileConfig(
         },
     ),
 )
-
-project_config = ProjectConfig(
-    dbt_project_path="/opt/airflow/dbt",
-)
-
-execution_config = ExecutionConfig(
-    dbt_executable_path="/home/airflow/.local/bin/dbt",
-)
-
-render_config = RenderConfig(
-    select=["tag:gold"]
-)
-
-
-def on_failure_callback(context):
-    from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
-    from airflow.exceptions import AirflowNotFoundException
-    msg = (
-        f":red_circle: DAG *{context['dag'].dag_id}* failed.\n"
-        f"Task: `{context['task_instance'].task_id}`\n"
-        f"Run: `{context['run_id']}`\n"
-        f"Log: {context['task_instance'].log_url}"
-    )
-
-    try:
-        SlackWebhookOperator(
-            task_id="slack_alert",
-            slack_webhook_conn_id="slack_default",
-            message=msg,
-        ).execute(context)
-    except AirflowNotFoundException:
-        print("WARNING: slack_default connection not configured — skipping Slack alert")
-
+project_config = ProjectConfig( dbt_project_path="/opt/airflow/dbt")
+execution_config = ExecutionConfig( dbt_executable_path="/home/airflow/.local/bin/dbt")
+render_config = RenderConfig( select=["tag:gold"] )
 
 default_args = {
     "owner": "airflow",
@@ -99,46 +70,46 @@ default_args = {
 }
 
 @dag(
-    dag_id="flight_ops_medallion_pipe",
-    default_args=default_args,
+    dag_id="flight_transform",
+    default_args=   default_args,
     start_date=datetime(2026, 1, 1),
-    schedule_interval=Variable.get("FLIGHT_SCHEDULE_INTERVAL", default_var="*/30 * * * *"),
+    schedule_interval=None,     # triggered externally by ingest_dag
     catchup=False,
     max_active_runs=1,
-    tags=["flight", "medallion", "snowflake", "v1"],
+    tags=["flight", "transform", "silver", "gold", "snowflake", "v1"],
 )
 
+def transform():
+    @task
+    def get_bronze_file(**context):
+        bronze_file: str = context['dag_run'].conf.get('bronze_file', '')
 
-def flight_pipeline():
-    
-    @task(retries=3, retry_delay=timedelta(seconds=30), retry_exponential_backoff=True, max_retry_delay=timedelta(minutes=10))
-    def bronze(**context):
-        return run_bronze_ingestion(**context)
-    
+        if not bronze_file:
+            raise ValueError("transform_dag: no bronze_file received in dag_run.conf.")
+        return bronze_file
+
     @task
     def silver(bronze_file: str, **context):
         return run_silver_transform(bronze_file=bronze_file, **context)
-    
+
     @task
     def quality(silver_file: str, **context):
         return run_quality_check(silver_file=silver_file, **context)
-    
-    @task
-    def gold(silver_file: str, quality_report: dict, **context):
-        if quality_report["row_count"] == 0:
-            raise ValueError("Quality check reported zero rows — aborting gold layer.")
-        return run_gold_layer(silver_file=silver_file, **context)
-    
-    
-    @task(trigger_rule=TriggerRule.ALL_SUCCESS)
-    def snapshot(**context):
-        return create_snapshot(**context)
-    
-    @task
-    def load(bronze_file: str, silver_file: str, gold_file: str, **context):
-        return snowflake_load(bronze_file=bronze_file, silver_file=silver_file, gold_file=gold_file, **context)
-    
 
+    dq_gate = DataQualityOperator(
+        task_id="quality_gate",
+        source_task_id="quality",
+        min_row_count=1,
+        fail_on_empty=True,
+        poke_interval=30,
+        timeout=300,
+        mode="reschedule"
+    )
+
+    @task
+    def gold(silver_file: str, **context):
+
+        return run_gold_layer(silver_file=silver_file, **context)
 
     bronze_run = DbtTaskGroup(
         group_id="bronze_run",
@@ -158,7 +129,7 @@ def flight_pipeline():
         render_config=RenderConfig(select=["tag:silver"])
     )
 
-    dbt_run = DbtTaskGroup(
+    gold_run = DbtTaskGroup(
         group_id="gold_run",
         project_config=project_config,
         profile_config=profile_config,
@@ -166,16 +137,29 @@ def flight_pipeline():
         operator_args={"install_deps": True, "env": _DBT_ENV},
         render_config=RenderConfig(select=["tag:gold"])
     )
-    
-    
-    bronze_file = bronze()
-    silver_file = silver(bronze_file)
+
+    trigger_load = TriggerDagRunOperator(
+        task_id="trigger_load",
+        trigger_dag_id="flight_load",
+        conf={
+            "bronze_file": "{{ ti.xcom_pull(task_ids='get_bronze_file') }}",
+            "silver_file": "{{ ti.xcom_pull(task_ids='silver') }}",
+            "gold_file": "{{ ti.xcom_pull(task_ids='gold') }}"
+        },
+        wait_for_completion=False
+    )
+
+    bronze_file = get_bronze_file()
+    silver_file= silver(bronze_file)
     quality_report = quality(silver_file)
-    gold_file = gold(silver_file, quality_report)
-    snapshot_ts = snapshot()
 
-    gold_file >> bronze_run >> silver_run >> dbt_run >> snapshot_ts
-    load(bronze_file, silver_file, gold_file) << snapshot_ts
+    quality_report >> dq_gate
 
+    gold_file = gold(silver_file)
 
-flight_pipeline()
+    dq_gate >> gold_file
+
+    # dbt runs after Gold task succeeds
+    gold_file >> bronze_run >> silver_run >> gold_run >> trigger_load
+
+transform()
