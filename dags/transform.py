@@ -2,16 +2,22 @@
 Silver transform → DataQualityOperator gate → Gold layer → dbt runs.
 Receives ``bronze_file`` from ingest_dag via DagRun conf.
 """
+
 import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from airflow.models import Variable
 from airflow.decorators import dag, task
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
-from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig, RenderConfig
+from cosmos import (
+    DbtTaskGroup,
+    ProjectConfig,
+    ProfileConfig,
+    ExecutionConfig,
+    RenderConfig,
+)
 from cosmos.profiles import SnowflakeUserPasswordProfileMapping
 
 
@@ -20,21 +26,21 @@ AIRFLOW_HOME = Path("/opt/airflow")
 if str(AIRFLOW_HOME) not in sys.path:
     sys.path.insert(0, str(AIRFLOW_HOME))
 
-from scripts.failure_callback import on_failure_callback
-from scripts.quality_checks import run_quality_check
-from scripts.silver_layer import run_silver_transform
-from scripts.gold_layer import run_gold_layer
-from dags.data_quality import DataQualityOperator
+from scripts.failure_callback import on_failure_callback  # noqa: E402
+from scripts.quality_checks import run_quality_check  # noqa: E402
+from scripts.silver_layer import run_silver_transform  # noqa: E402
+from scripts.gold_layer import run_gold_layer  # noqa: E402
+from dags.data_quality import DataQualityOperator  # noqa: E402
 
 
 _SNOWFLAKE_ENV = {
-    "SNOWFLAKE_ACCOUNT":    os.getenv("SNOWFLAKE_ACCOUNT", ""),
-    "SNOWFLAKE_USER":       os.getenv("SNOWFLAKE_USER", ""),
-    "SNOWFLAKE_PASSWORD":   os.getenv("SNOWFLAKE_PASSWORD", ""),
-    "SNOWFLAKE_ROLE":       os.getenv("SNOWFLAKE_ROLE", ""),
-    "SNOWFLAKE_DATABASE":   os.getenv("SNOWFLAKE_DATABASE", ""),
-    "SNOWFLAKE_WAREHOUSE":  os.getenv("SNOWFLAKE_WAREHOUSE", ""),
-    "SNOWFLAKE_SCHEMA":     os.getenv("SNOWFLAKE_SCHEMA", ""),
+    "SNOWFLAKE_ACCOUNT": os.getenv("SNOWFLAKE_ACCOUNT", ""),
+    "SNOWFLAKE_USER": os.getenv("SNOWFLAKE_USER", ""),
+    "SNOWFLAKE_PASSWORD": os.getenv("SNOWFLAKE_PASSWORD", ""),
+    "SNOWFLAKE_ROLE": os.getenv("SNOWFLAKE_ROLE", ""),
+    "SNOWFLAKE_DATABASE": os.getenv("SNOWFLAKE_DATABASE", ""),
+    "SNOWFLAKE_WAREHOUSE": os.getenv("SNOWFLAKE_WAREHOUSE", ""),
+    "SNOWFLAKE_SCHEMA": os.getenv("SNOWFLAKE_SCHEMA", ""),
 }
 
 _DBT_ENV = {
@@ -56,9 +62,9 @@ profile_config = ProfileConfig(
         },
     ),
 )
-project_config = ProjectConfig( dbt_project_path="/opt/airflow/dbt")
-execution_config = ExecutionConfig( dbt_executable_path="/home/airflow/.local/bin/dbt")
-render_config = RenderConfig( select=["tag:gold"] )
+project_config = ProjectConfig(dbt_project_path="/opt/airflow/dbt")
+execution_config = ExecutionConfig(dbt_executable_path="/home/airflow/.local/bin/dbt")
+render_config = RenderConfig(select=["tag:gold"])
 
 default_args = {
     "owner": "airflow",
@@ -69,20 +75,20 @@ default_args = {
     "on_failure_callback": on_failure_callback,
 }
 
+
 @dag(
     dag_id="flight_transform",
-    default_args=   default_args,
+    default_args=default_args,
     start_date=datetime(2026, 1, 1),
-    schedule_interval=None,     # triggered externally by ingest_dag
+    schedule_interval=None,  # triggered externally by ingest_dag
     catchup=False,
     max_active_runs=1,
     tags=["flight", "transform", "silver", "gold", "snowflake", "v1"],
 )
-
 def transform():
     @task
     def get_bronze_file(**context):
-        bronze_file: str = context['dag_run'].conf.get('bronze_file', '')
+        bronze_file: str = context["dag_run"].conf.get("bronze_file", "")
 
         if not bronze_file:
             raise ValueError("transform_dag: no bronze_file received in dag_run.conf.")
@@ -103,7 +109,7 @@ def transform():
         fail_on_empty=True,
         poke_interval=30,
         timeout=300,
-        mode="reschedule"
+        mode="reschedule",
     )
 
     @task
@@ -117,7 +123,7 @@ def transform():
         profile_config=profile_config,
         execution_config=execution_config,
         operator_args={"install_deps": True, "env": _DBT_ENV},
-        render_config=RenderConfig(select=["tag:bronze"])
+        render_config=RenderConfig(select=["tag:bronze"]),
     )
 
     silver_run = DbtTaskGroup(
@@ -126,7 +132,7 @@ def transform():
         profile_config=profile_config,
         execution_config=execution_config,
         operator_args={"install_deps": True, "env": _DBT_ENV},
-        render_config=RenderConfig(select=["tag:silver"])
+        render_config=RenderConfig(select=["tag:silver"]),
     )
 
     gold_run = DbtTaskGroup(
@@ -135,7 +141,7 @@ def transform():
         profile_config=profile_config,
         execution_config=execution_config,
         operator_args={"install_deps": True, "env": _DBT_ENV},
-        render_config=RenderConfig(select=["tag:gold"])
+        render_config=RenderConfig(select=["tag:gold"]),
     )
 
     trigger_load = TriggerDagRunOperator(
@@ -144,13 +150,13 @@ def transform():
         conf={
             "bronze_file": "{{ ti.xcom_pull(task_ids='get_bronze_file') }}",
             "silver_file": "{{ ti.xcom_pull(task_ids='silver') }}",
-            "gold_file": "{{ ti.xcom_pull(task_ids='gold') }}"
+            "gold_file": "{{ ti.xcom_pull(task_ids='gold') }}",
         },
-        wait_for_completion=False
+        wait_for_completion=False,
     )
 
     bronze_file = get_bronze_file()
-    silver_file= silver(bronze_file)
+    silver_file = silver(bronze_file)
     quality_report = quality(silver_file)
 
     quality_report >> dq_gate
@@ -161,5 +167,6 @@ def transform():
 
     # dbt runs after Gold task succeeds
     gold_file >> bronze_run >> silver_run >> gold_run >> trigger_load
+
 
 transform()

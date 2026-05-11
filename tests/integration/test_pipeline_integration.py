@@ -9,7 +9,7 @@ Scenarios:
   1. Full happy-path pipeline produces a Gold CSV with correct data
   2. Empty-states pipeline: bronze and silver both skip gracefully
 """
-import json
+
 import sys
 import types
 from datetime import datetime, timezone
@@ -25,7 +25,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 # Stub airflow.exceptions so tests run without a full Airflow install
 _airflow = sys.modules.get("airflow") or types.ModuleType("airflow")
-_airflow_exc = sys.modules.get("airflow.exceptions") or types.ModuleType("airflow.exceptions")
+_airflow_exc = sys.modules.get("airflow.exceptions") or types.ModuleType(
+    "airflow.exceptions"
+)
 
 
 class AirflowSkipException(Exception):
@@ -54,11 +56,12 @@ except ImportError:
     sys.modules.setdefault("pandera", _pandera)
     sys.modules.setdefault("pandera.errors", _pandera_errors)
 
-from scripts.bronze_layer import run_bronze_ingestion   # noqa: E402
-from scripts.silver_layer import run_silver_transform   # noqa: E402
-from scripts.gold_layer import run_gold_layer           # noqa: E402
+from scripts.bronze_layer import run_bronze_ingestion  # noqa: E402
+from scripts.silver_layer import run_silver_transform  # noqa: E402
+from scripts.gold_layer import run_gold_layer  # noqa: E402
 
 # Context factory
+
 
 def _build_pipeline_context(tmp_path: Path):
     """
@@ -80,6 +83,7 @@ def _build_pipeline_context(tmp_path: Path):
 
 def _path_redirector(tmp_path: Path):
     """Return a side_effect that maps /opt/airflow/... → tmp_path/..."""
+
     def _redir(p):
         p_obj = Path(p)
         try:
@@ -87,6 +91,7 @@ def _path_redirector(tmp_path: Path):
         except ValueError:
             rel = p_obj
         return tmp_path / rel
+
     return _redir
 
 
@@ -108,8 +113,10 @@ class TestFullPipelineIntegration:
         path_redirect = _path_redirector(tmp_path)
 
         with (
-            patch("scripts.bronze_layer.requests.get",
-                  return_value=_make_http_response(mock_opensky_response)),
+            patch(
+                "scripts.bronze_layer.requests.get",
+                return_value=_make_http_response(mock_opensky_response),
+            ),
             patch("scripts.bronze_layer.Path", side_effect=path_redirect),
             patch("scripts.silver_layer.Path", side_effect=path_redirect),
             patch("scripts.gold_layer.Path", side_effect=path_redirect),
@@ -127,14 +134,18 @@ class TestFullPipelineIntegration:
         assert "origin_country" in gold_df.columns
         assert "total_flights" in gold_df.columns
 
-    def test_total_flights_sum_matches_input(self, tmp_path, mock_opensky_response, sample_states):
+    def test_total_flights_sum_matches_input(
+        self, tmp_path, mock_opensky_response, sample_states
+    ):
         """Sum of total_flights in Gold must equal the number of input states."""
         ctx, xcom_store = _build_pipeline_context(tmp_path)
         path_redirect = _path_redirector(tmp_path)
 
         with (
-            patch("scripts.bronze_layer.requests.get",
-                  return_value=_make_http_response(mock_opensky_response)),
+            patch(
+                "scripts.bronze_layer.requests.get",
+                return_value=_make_http_response(mock_opensky_response),
+            ),
             patch("scripts.bronze_layer.Path", side_effect=path_redirect),
             patch("scripts.silver_layer.Path", side_effect=path_redirect),
             patch("scripts.gold_layer.Path", side_effect=path_redirect),
@@ -155,8 +166,10 @@ class TestFullPipelineIntegration:
         path_redirect = _path_redirector(tmp_path)
 
         with (
-            patch("scripts.bronze_layer.requests.get",
-                  return_value=_make_http_response(mock_opensky_response)),
+            patch(
+                "scripts.bronze_layer.requests.get",
+                return_value=_make_http_response(mock_opensky_response),
+            ),
             patch("scripts.bronze_layer.Path", side_effect=path_redirect),
             patch("scripts.silver_layer.Path", side_effect=path_redirect),
         ):
@@ -176,7 +189,9 @@ class TestFullPipelineIntegration:
 
         assert first_row_count == second_row_count
 
-    def test_empty_states_pipeline_skips_gracefully(self, tmp_path, mock_opensky_empty_response):
+    def test_empty_states_pipeline_skips_gracefully(
+        self, tmp_path, mock_opensky_empty_response
+    ):
         """
         When OpenSky returns states=None, Bronze must raise AirflowSkipException.
         Silver must never be reached.
@@ -185,8 +200,10 @@ class TestFullPipelineIntegration:
         path_redirect = _path_redirector(tmp_path)
 
         with (
-            patch("scripts.bronze_layer.requests.get",
-                  return_value=_make_http_response(mock_opensky_empty_response)),
+            patch(
+                "scripts.bronze_layer.requests.get",
+                return_value=_make_http_response(mock_opensky_empty_response),
+            ),
             patch("scripts.bronze_layer.Path", side_effect=path_redirect),
             pytest.raises(AirflowSkipException),
         ):
@@ -195,7 +212,9 @@ class TestFullPipelineIntegration:
         # Silver must not have been reached
         assert "bronze_file" not in xcom_store
 
-    def test_gold_country_names_match_silver(self, tmp_path, mock_opensky_response, sample_states):
+    def test_gold_country_names_match_silver(
+        self, tmp_path, mock_opensky_response, sample_states
+    ):
         """Country names in Gold must be the same set as in the input states."""
         ctx, xcom_store = _build_pipeline_context(tmp_path)
         path_redirect = _path_redirector(tmp_path)
@@ -203,8 +222,10 @@ class TestFullPipelineIntegration:
         expected_countries = {s[2] for s in sample_states}  # origin_country is index 2
 
         with (
-            patch("scripts.bronze_layer.requests.get",
-                  return_value=_make_http_response(mock_opensky_response)),
+            patch(
+                "scripts.bronze_layer.requests.get",
+                return_value=_make_http_response(mock_opensky_response),
+            ),
             patch("scripts.bronze_layer.Path", side_effect=path_redirect),
             patch("scripts.silver_layer.Path", side_effect=path_redirect),
             patch("scripts.gold_layer.Path", side_effect=path_redirect),

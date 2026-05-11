@@ -12,9 +12,9 @@ AIRFLOW_HOME = Path("/opt/airflow")
 if str(AIRFLOW_HOME) not in sys.path:
     sys.path.insert(0, str(AIRFLOW_HOME))
 
-from scripts.failure_callback import on_failure_callback
-from scripts.snowflake_backup import create_snapshot
-from scripts.snowflake_conn import snowflake_load
+from scripts.failure_callback import on_failure_callback  # noqa: E402
+from scripts.snowflake_backup import create_snapshot  # noqa: E402
+from scripts.snowflake_conn import snowflake_load  # noqa: E402
 
 default_args = {
     "owner": "airflow",
@@ -25,11 +25,14 @@ default_args = {
     "on_failure_callback": on_failure_callback,
 }
 
+
 @dag(
     dag_id="flight_load",
     default_args=default_args,
     start_date=datetime(2026, 1, 1),
-    schedule_interval=Variable.get("FLIGHT_SCHEDULE_INTERVAL", default_var="*/30 * * * *"),
+    schedule_interval=Variable.get(
+        "FLIGHT_SCHEDULE_INTERVAL", default_var="*/30 * * * *"
+    ),
     catchup=False,
     max_active_runs=1,
     tags=["flight", "medallion", "snowflake", "v1"],
@@ -38,17 +41,19 @@ def load():
 
     @task
     def get_file_paths(**context):
-        conf = context['dag_run'].conf or {}
+        conf = context["dag_run"].conf or {}
 
-        missing = [k for k in ('bronze_file', 'silver_file', 'gold_file') if not conf.get(k)]
+        missing = [
+            k for k in ("bronze_file", "silver_file", "gold_file") if not conf.get(k)
+        ]
 
         if missing:
             raise ValueError(f"load_dag: missing conf keys: {missing}")
 
         return {
-            'bronze_file': conf['bronze_file'],
-            'silver_file': conf['silver_file'],
-            'gold_file': conf['gold_file']
+            "bronze_file": conf["bronze_file"],
+            "silver_file": conf["silver_file"],
+            "gold_file": conf["gold_file"],
         }
 
     @task(trigger_rule=TriggerRule.ALL_SUCCESS)
@@ -58,10 +63,10 @@ def load():
     @task(trigger_rule=TriggerRule.ALL_SUCCESS)
     def load(paths: dict, **context):
         return snowflake_load(
-            bronze_file=paths['bronze_file'],
-            silver_file=paths['silver_file'],
-            gold_file=paths['gold_file'],
-            **context
+            bronze_file=paths["bronze_file"],
+            silver_file=paths["silver_file"],
+            gold_file=paths["gold_file"],
+            **context,
         )
 
     paths = get_file_paths()

@@ -1,3 +1,9 @@
+secrets:
+  snowflake_password:
+    external: true
+  snowflake_account:
+    external: true
+
 services:
   postgres:
     image: postgres:15
@@ -11,6 +17,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
 
   airflow-init:
     image: apache/airflow:2.9.3

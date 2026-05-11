@@ -1,10 +1,11 @@
 """
 Unit tests for scripts/silver_layer.py
 """
+
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -13,6 +14,7 @@ from airflow.exceptions import AirflowSkipException
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
 from scripts.silver_layer import run_silver_transform, SILVER_COLUMNS  # noqa: E402
+
 
 class TestSilverTransform:
 
@@ -41,7 +43,7 @@ class TestSilverTransform:
 
         with (
             patch("scripts.silver_layer.Path", side_effect=path_redir),
-            pytest.raises(AirflowSkipException)
+            pytest.raises(AirflowSkipException),
         ):
             run_silver_transform(**mock_context)
 
@@ -50,7 +52,9 @@ class TestSilverTransform:
         with pytest.raises(ValueError, match="Bronze file path not found"):
             run_silver_transform(**mock_context)
 
-    def test_icao24_column_values_preserved(self, tmp_path, bronze_json_file, mock_context, xcom_store, path_redir):
+    def test_icao24_column_values_preserved(
+        self, tmp_path, bronze_json_file, mock_context, xcom_store, path_redir
+    ):
         """icao24 values from raw states must be preserved in Silver."""
         xcom_store["bronze_file"] = str(bronze_json_file)
 
@@ -60,7 +64,9 @@ class TestSilverTransform:
         df = pd.read_csv(Path(xcom_store["silver_file"]))
         assert "abc123" in df["icao24"].values
 
-    def test_output_filename_uses_exec_date(self, tmp_path, bronze_json_file, mock_context, xcom_store, path_redir):
+    def test_output_filename_uses_exec_date(
+        self, tmp_path, bronze_json_file, mock_context, xcom_store, path_redir
+    ):
         """Silver filename must embed the execution date (ds_nodash)."""
         xcom_store["bronze_file"] = str(bronze_json_file)
 

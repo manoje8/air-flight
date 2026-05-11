@@ -7,9 +7,10 @@ Covers:
   - XCom push contains the gold file path
   - ValueError propagated when silver_file XCom key is missing
 """
+
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
