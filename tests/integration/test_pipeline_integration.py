@@ -19,7 +19,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-
 REPO_ROOT = Path(__file__).parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 

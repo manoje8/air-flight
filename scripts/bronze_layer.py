@@ -23,6 +23,7 @@ def run_bronze_ingestion(**context) -> str:
       exponential backoff to handle OpenSky rate limits (HTTP 429).
     """
 
+    ti = context.get("ti")
     # Idempotency: derive a deterministic filename from the logical date
     logical_date = context["logical_date"]
     timestamp = logical_date.strftime("%Y-%m-%d-%H-%M-%S")
@@ -33,8 +34,9 @@ def run_bronze_ingestion(**context) -> str:
             "Bronze file already exists for interval %s — skipping ingestion (idempotent).",
             timestamp,
         )
-        context["ti"].xcom_push(key="bronze_file", value=str(path))
-        return
+        if ti:
+            ti.xcom_push(key="bronze_file", value=str(path))
+        return str(path)
 
     logger.info("Fetching flight data from OpenSky Network API...")
     response = requests.get(OPEN_SKY_NETWORK_URI, timeout=30)
@@ -55,5 +57,7 @@ def run_bronze_ingestion(**context) -> str:
     with open(path, "w") as f:
         json.dump(data, f)
 
+    if ti:
+        ti.xcom_push(key="bronze_file", value=str(path))
     logger.info("Bronze file written: %s", path)
     return str(path)

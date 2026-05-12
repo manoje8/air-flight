@@ -49,7 +49,7 @@ def ingest():
         task_id="trigger_transform",
         trigger_dag_id="flight_transform",
         conf={"bronze_file": "{{ ti.xcom_pull(task_ids='bronze') }}"},
-        wait_for_completion=False,  # fire and forget
+        wait_for_completion=True,
     )
 
     bronze() >> trigger_transform

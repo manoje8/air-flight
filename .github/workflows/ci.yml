@@ -1,0 +1,81 @@
+name: Airflow CI
+run-name: ${{ github.actor }} is running Airflow CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff black
+
+      - name: Ruff lint
+        run: ruff check dags/ plugins
+
+      - name: Black lint
+        run: black --check dags/ plugins
+
+      - name: Validate Dags import
+        run: |
+          python -c "
+          import sys, os, importlib.util
+          dag_dir = 'dags'
+          for filename in os.listdir(dag_dir):
+              if filename.endswith('.py'):
+                  spec = importlib.util.spec_from_file_location(f, os.path.join(dag_dir, f))
+                  mod = importlib.util.module_from_spec(spec)
+                  spec.loader.exec_module(mod)
+                  print(f'OK: {f}')
+          "
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: airflow
+          POSTGRES_PASSWORD: airflow
+          POSTGRES_DB: airflow
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@localhost/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-airflow
+
+      - name: Init Airflow DB
+        run: airflow db migrate
+
+      - name: Run tests
+        run: pytest tests/ -v

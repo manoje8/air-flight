@@ -6,7 +6,6 @@ from airflow.models import Variable
 from airflow.decorators import dag, task
 from airflow.utils.trigger_rule import TriggerRule
 
-
 AIRFLOW_HOME = Path("/opt/airflow")
 
 if str(AIRFLOW_HOME) not in sys.path:

@@ -20,7 +20,6 @@ from cosmos import (
 )
 from cosmos.profiles import SnowflakeUserPasswordProfileMapping
 
-
 AIRFLOW_HOME = Path("/opt/airflow")
 
 if str(AIRFLOW_HOME) not in sys.path:
@@ -31,7 +30,6 @@ from scripts.quality_checks import run_quality_check  # noqa: E402
 from scripts.silver_layer import run_silver_transform  # noqa: E402
 from scripts.gold_layer import run_gold_layer  # noqa: E402
 from dags.data_quality import DataQualityOperator  # noqa: E402
-
 
 _SNOWFLAKE_ENV = {
     "SNOWFLAKE_ACCOUNT": os.getenv("SNOWFLAKE_ACCOUNT", ""),

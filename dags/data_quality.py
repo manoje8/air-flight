@@ -12,6 +12,7 @@ from airflow.exceptions import AirflowSkipException
 
 logger = logging.getLogger(__name__)
 
+
 class DataQualityOperator(BaseSensorOperator):
     """
     source_task_id : str
@@ -26,17 +27,17 @@ class DataQualityOperator(BaseSensorOperator):
         Example: ``{"null_rate": 0.0, "duplicate_count": 0}``
     """
 
-    template_fields = ("source_task_id")
+    template_fields = ("source_task_id",)
     ui_color = "#f0ad4e"
 
     def __init__(
-            self,
-            *,
-            source_task_id:str = "quality",
-            min_row_count:int = 1,
-            fail_on_empty:bool = True,
-            extra_checks: dict[str, Any] | None = None,
-            **kwargs: Any,
+        self,
+        *,
+        source_task_id: str = "quality",
+        min_row_count: int = 1,
+        fail_on_empty: bool = True,
+        extra_checks: dict[str, Any] | None = None,
+        **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self.source_task_id = source_task_id
@@ -44,17 +45,20 @@ class DataQualityOperator(BaseSensorOperator):
         self.fail_on_empty = fail_on_empty
         self.extra_checks = extra_checks or {}
 
-
     def poke(self, context: Context) -> bool:
-        ti = context['ti']
+        ti = context["ti"]
         report: dict[str, Any] | None = ti.xcom_pull(task_ids=self.source_task_id)
 
         if report is None:
-            logger.warning(f"[Data Quality operator]: No Xcom from task {self.source_task_id} yet - retrying")
+            logger.warning(
+                f"[Data Quality operator]: No Xcom from task {self.source_task_id} yet - retrying"
+            )
             return False
 
         row_count: int = report.get("row_count", 0)
-        logger.info(f"[Data Quality operator]: Silver row count: {row_count} (min required: {self.min_row_count})")
+        logger.info(
+            f"[Data Quality operator]: Silver row count: {row_count} (min required: {self.min_row_count})"
+        )
 
         if row_count < self.min_row_count:
             msg = (
@@ -67,7 +71,6 @@ class DataQualityOperator(BaseSensorOperator):
                 raise ValueError(msg)
 
             raise AirflowSkipException(msg)
-
 
         failures: list[str] = []
 

@@ -43,7 +43,7 @@ FLOAT_COLS = [
 INT_NULLABLE_COLS = ["time_position", "last_contact"]
 
 
-def run_silver_transform(bronze_file: str, **context) -> str:
+def run_silver_transform(bronze_file: str = None, **context) -> str:
     """
     Transform Bronze raw JSON into a clean, schema-normalised Silver CSV.
 
@@ -51,6 +51,13 @@ def run_silver_transform(bronze_file: str, **context) -> str:
       so downstream quality checks and Gold layer are skipped gracefully.
     - Raises ValueError when the Bronze file path is missing from XCom.
     """
+    ti = context.get("ti")
+    if not bronze_file and ti:
+        bronze_file = ti.xcom_pull(key="bronze_file")
+
+    if not bronze_file:
+        raise ValueError("Bronze file path not found")
+
     exec_date = context["ds_nodash"]
 
     logger.info("Reading Bronze file: %s", bronze_file)
@@ -88,5 +95,8 @@ def run_silver_transform(bronze_file: str, **context) -> str:
     df.to_csv(output_file, index=False)
 
     logger.info("Silver file written: %s", output_file)
-    
+
+    if ti:
+        ti.xcom_push(key="silver_file", value=str(output_file))
+
     return str(output_file)

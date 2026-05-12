@@ -8,6 +8,7 @@ Provides:
   - bronze_json_file      : a real Bronze JSON file written to tmp_path
   - silver_csv_file       : a real Silver CSV file written to tmp_path
 """
+
 import json
 import sys
 import types
@@ -22,13 +23,18 @@ import pytest
 # This ensures all tests (unit and integration) use the same Exception classes
 # and avoid "Class A is not Class B" errors when catching exceptions.
 
+
 class AirflowSkipException(Exception):
     """Stub for airflow.exceptions.AirflowSkipException"""
+
     pass
+
 
 class AirflowFailException(Exception):
     """Stub for airflow.exceptions.AirflowFailException"""
+
     pass
+
 
 def setup_airflow_stubs():
     if "airflow" not in sys.modules:
@@ -40,21 +46,107 @@ def setup_airflow_stubs():
         sys.modules["airflow"] = airflow_pkg
         sys.modules["airflow.exceptions"] = airflow_exceptions
 
+
 setup_airflow_stubs()
 
 
 # ── Raw state vectors (17 fields per OpenSky spec) ────────────────────────────
 SAMPLE_STATES = [
-    ["abc123", "UAL123  ", "United States", 1700000000.0, 1700000001.0,
-     -87.6298, 41.8827, 10000.0, False, 250.0, 90.0, 0.5, None, 9800.0, "1234", False, 0],
-    ["def456", "BAW456  ", "United Kingdom", 1700000000.0, 1700000001.0,
-     0.1276, 51.5074, 11000.0, False, 280.0, 180.0, -0.2, None, 10800.0, "5678", False, 0],
-    ["ghi789", "DLH789  ", "Germany", 1700000000.0, 1700000001.0,
-     13.4050, 52.5200, 9000.0, False, 300.0, 270.0, 1.0, None, 8800.0, "9012", False, 0],
-    ["jkl012", "AFR012  ", "France", 1700000000.0, 1700000001.0,
-     2.3522, 48.8566, 12000.0, False, 260.0, 0.0, -1.0, None, 11800.0, "3456", False, 0],
-    ["mno345", "SIA345  ", "Singapore", 1700000000.0, 1700000001.0,
-     103.8198, 1.3521, 11500.0, False, 310.0, 45.0, 0.0, None, 11300.0, "7890", False, 0],
+    [
+        "abc123",
+        "UAL123  ",
+        "United States",
+        1700000000.0,
+        1700000001.0,
+        -87.6298,
+        41.8827,
+        10000.0,
+        False,
+        250.0,
+        90.0,
+        0.5,
+        None,
+        9800.0,
+        "1234",
+        False,
+        0,
+    ],
+    [
+        "def456",
+        "BAW456  ",
+        "United Kingdom",
+        1700000000.0,
+        1700000001.0,
+        0.1276,
+        51.5074,
+        11000.0,
+        False,
+        280.0,
+        180.0,
+        -0.2,
+        None,
+        10800.0,
+        "5678",
+        False,
+        0,
+    ],
+    [
+        "ghi789",
+        "DLH789  ",
+        "Germany",
+        1700000000.0,
+        1700000001.0,
+        13.4050,
+        52.5200,
+        9000.0,
+        False,
+        300.0,
+        270.0,
+        1.0,
+        None,
+        8800.0,
+        "9012",
+        False,
+        0,
+    ],
+    [
+        "jkl012",
+        "AFR012  ",
+        "France",
+        1700000000.0,
+        1700000001.0,
+        2.3522,
+        48.8566,
+        12000.0,
+        False,
+        260.0,
+        0.0,
+        -1.0,
+        None,
+        11800.0,
+        "3456",
+        False,
+        0,
+    ],
+    [
+        "mno345",
+        "SIA345  ",
+        "Singapore",
+        1700000000.0,
+        1700000001.0,
+        103.8198,
+        1.3521,
+        11500.0,
+        False,
+        310.0,
+        45.0,
+        0.0,
+        None,
+        11300.0,
+        "7890",
+        False,
+        0,
+    ],
 ]
 
 
@@ -145,6 +237,7 @@ def silver_csv_file(tmp_path):
 @pytest.fixture
 def path_redir(tmp_path):
     """Fixture that returns a function to redirect /opt/airflow paths to tmp_path."""
+
     def _redir(p):
         p_obj = Path(p)
         try:
@@ -154,8 +247,9 @@ def path_redir(tmp_path):
                 parts = parts[1:]
             if parts[0] == "opt" and parts[1] == "airflow":
                 parts = parts[2:]
-            
+
             return tmp_path / Path(*parts)
         except (ValueError, IndexError):
             return tmp_path / p_obj.name
+
     return _redir

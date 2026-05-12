@@ -1,83 +1,92 @@
 # Air Flight
 
-Flight Data Engineering Pipeline
+End-to-end flight data engineering pipeline using Apache Airflow, Snowflake, and Docker.
 
-This project implements an end-to-end flight data engineering pipeline using Apache Airflow, snowflake and Docker. 
-The pipeline ingests flight data, performs transformations, and loads it into a data warehouse.
+This repository contains Airflow DAGs, helper scripts, and configuration to ingest, transform,
+and load flight telemetry into a data warehouse. It is intended as a local development
+and demonstration environment.
 
-1. Architecture Overview
+**Key Features:**
+- Orchestrated ingestion, transformation, loading, and quality checks (Airflow DAGs)
+- Bronze / Silver / Gold layering in `data/` and supporting dbt files in `dbt/`
+- Docker Compose setup for running Airflow locally
 
+**Repository layout (important paths):**
+- `dags/` - Airflow DAGs (`ingest.py`, `transform.py`, `load.py`, `data_quality.py`)
+- `data/` - Bronze / Silver / Gold sample data
+- `scripts/` - helper scripts and quality checks
+- `dbt/` - dbt project for downstream transformations
+- `tests/` - unit and integration tests
+- `requirements.txt`, `docker-compose.yml`, `Dockerfile`, `config.py`
 
-│ Flight Data │ → │  Airflow  (Orchestration)  │ → │  Data Warehouse  │
+Prerequisites
+-------------
+- Docker and Docker Compose
+- Python 3.9+ (for local CLI tasks and running tests)
 
-
-2. Prerequisites
-
-  * Docker and Docker Compose installed
-  * Python 3.9+
-  * (Optional) Airflow CLI installed
-
-3. Installation
-
+Quickstart (development)
+------------------------
 1. Clone the repository:
-   git clone <repository-url>
+
+   ```
+   git clone https://github.com/manoje8/air-flight.git
    cd airflow_flight
+   ```
 
-2. Install dependencies:
-   pip install -r requirements.txt
+2. (Optional) Create and activate a virtual environment:
 
-3. Start the pipeline:
-   docker-compose up -d
+   ```
+   python -m venv .venv
+   source .venv/bin/activate
+   ```
 
-4. Verification
+3. Install Python dependencies (optional for local scripts/tests):
 
-Airflow UI:
-  * Open http://localhost:8080 in your browser
-  * Log in with admin/admin
-  * Verify the flight_data_pipeline DAG is present
+   ```
+    pip install -r requirements.txt
+   ```
 
-Data Warehouse:
-  * Verify data in the data warehouse tables
+4. Start the local Airflow stack with Docker Compose:
 
-5. DAG Details
+   ```
+    docker-compose up -d
+   ```
 
-The flight_data_pipeline DAG performs the following steps:
+5. Open the Airflow web UI: http://localhost:8080
 
-  1. Fetch flight data from source
-  2. Transform raw data into structured format
-  3. Load data into data warehouse
-  4. Run data quality checks
-  5. Generate summary report
+   Default development credentials (if using the included compose setup): `admin` / `admin`
 
-6. Configuration
+Tips
+----
+- DAGs live in `dags/` - changes are picked up by the Airflow scheduler.
+- Sample raw JSON files are in `data/bronze/` for quick ingestion tests.
+- Database / warehouse credentials should be provided via environment variables or
+  your local `.env` file; sensitive credentials must NOT be committed.
 
-Environment variables are defined in .env file:
+Running tests
+-------------
+- Run unit tests:
+```
+  pytest tests/unit
+```
 
-  * AIRFLOW_HOME: Airflow home directory
-  * DATA_SOURCE_URL: URL for flight data
+- Integration tests (manual):
+  - Start the stack with `docker-compose up -d`
+  - Trigger DAG runs from the Airflow UI and inspect logs in `logs/`
 
-7. Testing
+Stopping and cleanup
+--------------------
+```
+  docker-compose down
+```
 
-Run unit tests:
-  pytest tests
+Where to look next
+------------------
+- DAG definitions: `dags/ingest.py`, `dags/transform.py`, `dags/load.py`
+- Helper scripts: `scripts/` (quality checks, Snowflake helpers)
 
-Run integration tests:
-  # Run the DAG manually in Airflow UI
-  # Check logs for test results
+If you'd like, I can:
+- run the unit tests locally and fix any failures,
+- or open a PR with this README update.
 
-8. Stopping the Pipeline
-
-docker-compose down
-
-9. Common Issues
-
-Docker not starting:
-  * Ensure Docker is running
-  * Check docker-compose logs for errors
-
-Airflow UI not accessible:
-  * Wait for Airflow to initialize (may take 1-2 minutes)
-  * Check Airflow logs: docker-compose logs airflow-webserver
-
-
-![alt text](image.png)
+![Project diagram](image.png)
