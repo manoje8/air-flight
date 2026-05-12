@@ -23,12 +23,12 @@ logs-worker:
 	$(COMPOSE) logs -f airflow-webserver
 
 lint:
-	ruff check dags/ plugins/ tests/
-	black --check dags/ plugins/ tests/
+	ruff check dags/ plugins/ tests/ scripts/ utils
+	black --check dags/ plugins/ tests/ scripts/ utils
 
 format:
-	ruff check --fix dags/ plugins/ tests/
-	black dags/ plugins/ tests/
+	ruff check --fix dags/ plugins/ tests/ scripts/ utils
+	black dags/ plugins/ tests/ scripts/ utils
 
 test:
 	pytest tests/ -v --tb=short

@@ -30,6 +30,9 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           export AIRFLOW__CORE__LOAD_EXAMPLES=False
+          export HOME_PATH=$(pwd)
+          export AIRFLOW_VAR_FLIGHT_SCHEDULE_INTERVAL="@daily"
+          export DISABLE_PANDERA_IMPORT_WARNING=True
           python <<EOF
           import os, importlib.util, sys
           dag_dir = 'dags'

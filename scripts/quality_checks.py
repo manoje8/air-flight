@@ -23,13 +23,12 @@ A SchemaError is raised (failing the DAG task) if any check is violated.
 """
 
 import logging
-from pathlib import Path
 
 import pandas as pd
-import pandera as pa
-from pandera import Column, DataFrameSchema, Check
+from pandera.pandas import Column, DataFrameSchema, Check
 
 logger = logging.getLogger(__name__)
+
 
 def _no_position_without_timestamp(df: pd.DataFrame) -> pd.Series:
     """
@@ -83,7 +82,7 @@ SILVER_SCHEMA = DataFrameSchema(
             ),
         ),
         "time_position": Column(pd.Int64Dtype(), nullable=True),
-        "last_contact":  Column(pd.Int64Dtype(), nullable=True),
+        "last_contact": Column(pd.Int64Dtype(), nullable=True),
         "velocity": Column(
             float,
             nullable=True,
@@ -93,10 +92,10 @@ SILVER_SCHEMA = DataFrameSchema(
             ),
         ),
         "vertical_rate": Column(float, nullable=True),
-        "true_track":    Column(float, nullable=True),
+        "true_track": Column(float, nullable=True),
         "baro_altitude": Column(float, nullable=True),
-        "geo_altitude":  Column(float, nullable=True),
-        "on_ground":     Column(bool, nullable=False),
+        "geo_altitude": Column(float, nullable=True),
+        "on_ground": Column(bool, nullable=False),
     },
     checks=[
         Check(
@@ -126,14 +125,13 @@ def run_quality_check(silver_file: str, **context) -> str:
 
     df = pd.read_csv(
         silver_file,
-        dtype = {
+        dtype={
             "time_position": "Int64",
             "last_contact": "Int64",
-        }
+        },
     )
 
     logger.info("Validating %d rows against SILVER_SCHEMA...", len(df))
-
 
     validated_df = SILVER_SCHEMA.validate(df, lazy=True)
 
@@ -150,7 +148,9 @@ def run_quality_check(silver_file: str, **context) -> str:
         "| null lat: %d (ground: %d, airborne: %d) | null lon: %d",
         len(validated_df),
         null_icao,
-        null_lat, null_pos_ground, null_pos_airborne,
+        null_lat,
+        null_pos_ground,
+        null_pos_airborne,
         null_lon,
     )
 
@@ -165,7 +165,9 @@ def run_quality_check(silver_file: str, **context) -> str:
         "null_icao24": int(validated_df["icao24"].isna().sum()),
         "null_latitude": int(validated_df["latitude"].isna().sum()),
         "null_longitude": int(validated_df["longitude"].isna().sum()),
-        "null_position_ground": int(validated_df[on_ground_mask]["latitude"].isna().sum()),
+        "null_position_ground": int(
+            validated_df[on_ground_mask]["latitude"].isna().sum()
+        ),
         "null_position_airborne": null_pos_airborne,
     }
 

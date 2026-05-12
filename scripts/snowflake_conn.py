@@ -9,21 +9,22 @@ from utils.snowflake_loader import SnowflakeLoader
 
 logger = logging.getLogger(__name__)
 
+
 def snowflake_load(bronze_file: str, silver_file: str, gold_file: str, **context):
     """
     Airflow task: Snowflake loader using batch operations.
     Loads Bronze, Silver, and Gold layers efficiently.
     """
 
-    ti = context['ti']
+    ti = context["ti"]
 
-    bronze_file = ti.xcom_pull(key='bronze_file', task_ids='bronze_ingest')
-    silver_file = ti.xcom_pull(key='silver_file', task_ids='silver_transform')
-    gold_file = ti.xcom_pull(key='gold_file', task_ids='gold_layer')
+    bronze_file = ti.xcom_pull(key="bronze_file", task_ids="bronze_ingest")
+    silver_file = ti.xcom_pull(key="silver_file", task_ids="silver_transform")
+    gold_file = ti.xcom_pull(key="gold_file", task_ids="gold_layer")
 
-    exec_date = context['data_interval_start'].strftime("%Y-%m-%d %H:%M:%S")
+    exec_date = context["data_interval_start"].strftime("%Y-%m-%d %H:%M:%S")
     ingestion_branch = f"airflow-{context['dag_run'].run_id}"
-    
+
     bronze_rows = silver_rows = gold_rows = 0
 
     loader = SnowflakeLoader()
@@ -43,7 +44,7 @@ def snowflake_load(bronze_file: str, silver_file: str, gold_file: str, **context
     # staging + MERGE pattern
     if gold_file:
         gold_df = pd.read_csv(gold_file)
-        gold_df = gold_df.rename(columns={'on_ground': 'ON_GROUND_SUM'})
+        gold_df = gold_df.rename(columns={"on_ground": "ON_GROUND_SUM"})
         gold_rows = loader.load_gold_batch(gold_df, exec_date)
         logger.info(f"Gold layer loaded: {gold_rows} rows merged")
 

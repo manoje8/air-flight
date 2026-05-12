@@ -1,4 +1,4 @@
-def on_failure_callback(context:dict) -> None:
+def on_failure_callback(context: dict) -> None:
     from airflow.exceptions import AirflowNotFoundException
     from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 
