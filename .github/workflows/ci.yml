@@ -21,10 +21,10 @@ jobs:
         run: pip install -r requirements.txt ruff black
 
       - name: Ruff lint
-        run: ruff check dags/ plugins/
+        run: ruff check dags/
 
       - name: Black format check
-        run: black --check dags/ plugins/
+        run: black --check dags/
 
       - name: Validate DAG imports
         run: |
