@@ -25,7 +25,7 @@ A SchemaError is raised (failing the DAG task) if any check is violated.
 import logging
 
 import pandas as pd
-from pandera.pandas import Column, DataFrameSchema, Check
+from pandera import Column, DataFrameSchema, Check
 
 logger = logging.getLogger(__name__)
 

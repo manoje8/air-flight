@@ -1,0 +1,71 @@
+{{
+  config(
+    materialized='table',
+    tags=['gold', 'trajectories'],
+    partition_by={
+      "field": "WINDOW_START",
+      "data_type": "timestamp",
+      "granularity": "hour"
+    },
+    cluster_by=['WINDOW_START', 'ICAO24']
+  )
+}}
+
+-- Link consecutive snapshots of the same flight to build paths
+WITH flight_points AS (
+  SELECT
+    ICAO24,
+    ORIGIN_COUNTRY,
+    TIME_POSITION,
+    LATITUDE,
+    LONGITUDE,
+    BARO_ALTITUDE,
+    VELOCITY_VALIDATED,
+    TRUE_TRACK,
+    ON_GROUND,
+
+    LAG(LATITUDE) OVER (PARTITION BY ICAO24 ORDER BY TIME_POSITION) AS PREV_LATITUDE,
+    LAG(LONGITUDE) OVER (PARTITION BY ICAO24 ORDER BY TIME_POSITION) AS PREV_LONGITUDE,
+    LAG(TIME_POSITION) OVER (PARTITION BY ICAO24 ORDER BY TIME_POSITION) AS PREV_TIME_POSITION,
+
+    -- Calculate time difference in seconds
+    TIMESTAMPDIFF(SECOND, LAG(TIME_POSITION) OVER (PARTITION BY ICAO24 ORDER BY TIME_POSITION), TIME_POSITION) AS TIME_DELTA_SECONDS
+
+  FROM {{ ref('silver_flights_cleaned') }}
+  WHERE TIME_POSITION IS NOT NULL
+    AND LATITUDE IS NOT NULL
+    AND LONGITUDE IS NOT NULL
+    AND lat_valid = 1
+    AND lon_valid = 1
+)
+
+SELECT
+  DATE_TRUNC('HOUR', TIME_POSITION) AS WINDOW_START,
+  ICAO24,
+  ORIGIN_COUNTRY,
+
+  PREV_TIME_POSITION AS START_TIME,
+  TIME_POSITION AS END_TIME,
+
+  PREV_LATITUDE AS START_LATITUDE,
+  PREV_LONGITUDE AS START_LONGITUDE,
+  LATITUDE AS END_LATITUDE,
+  LONGITUDE AS END_LONGITUDE,
+
+  BARO_ALTITUDE,
+  VELOCITY_VALIDATED,
+  TRUE_TRACK,
+  ON_GROUND,
+  TIME_DELTA_SECONDS,
+
+  -- Flag if this looks like a new flight segment (e.g., > 1 hour gap)
+  CASE
+    WHEN TIME_DELTA_SECONDS > 3600 OR TIME_DELTA_SECONDS IS NULL THEN TRUE
+    ELSE FALSE
+  END AS IS_NEW_SEGMENT,
+
+  CURRENT_TIMESTAMP() AS LOAD_TIME
+
+FROM flight_points
+-- Only keep rows that have a previous point, or are the start of a new tracked segment
+WHERE PREV_TIME_POSITION IS NOT NULL OR TIME_DELTA_SECONDS IS NULL

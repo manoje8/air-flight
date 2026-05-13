@@ -5,7 +5,7 @@ COMPOSE = docker compose
 AIRFLOW_EXEC = $(COMPOSE) exec airflow-webserver airflow
 
 up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) up -d
 
 down:
 	$(COMPOSE) down
