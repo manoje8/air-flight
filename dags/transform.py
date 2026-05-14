@@ -153,6 +153,15 @@ def transform():
         wait_for_completion=False,
     )
 
+    trigger_ml = TriggerDagRunOperator(
+        task_id="trigger_ml",
+        trigger_dag_id="flight_ml",
+        conf={
+            "silver_file": "{{ ti.xcom_pull(task_ids='silver') }}",
+        },
+        wait_for_completion=False,
+    )
+
     bronze_file = get_bronze_file()
     silver_file = silver(bronze_file)
     quality_report = quality(silver_file)
@@ -164,7 +173,8 @@ def transform():
     dq_gate >> gold_file
 
     # dbt runs after Gold task succeeds
-    gold_file >> bronze_run >> silver_run >> gold_run >> trigger_load
+    # flight_load and flight_ml are triggered in parallel after dbt gold_run
+    gold_file >> bronze_run >> silver_run >> gold_run >> [trigger_load, trigger_ml]
 
 
 transform()

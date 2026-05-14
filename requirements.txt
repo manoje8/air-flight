@@ -25,3 +25,7 @@ pytest-mock>=3.12.0
 # Dashboard dependencies
 streamlit>=1.30.0
 plotly>=5.18.0
+
+# ML dependencies
+scikit-learn>=1.4.0
+joblib>=1.4.0

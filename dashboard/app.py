@@ -369,3 +369,181 @@ else:
         )
         fig_gnd.update_layout(margin=dict(l=0, r=0, t=24, b=0), height=380)
         st.plotly_chart(fig_gnd, use_container_width=True)
+
+
+# ── ML Insights ───────────────────────────────────────────────────────────────
+
+st.divider()
+st.subheader("🤖 ML Insights — On-Ground Prediction & Anomaly Detection")
+st.caption(
+    "Predictions from Random Forest (on-ground classifier) and "
+    "Isolation Forest (velocity anomaly detector) — sourced from `GOLD_ML_PREDICTIONS`."
+)
+
+
+@st.cache_data(ttl=300)
+def load_ml_predictions() -> pd.DataFrame:
+    return run_query("""
+        SELECT
+            ICAO24,
+            ORIGIN_COUNTRY,
+            VELOCITY,
+            BARO_ALTITUDE,
+            PREDICTED_ON_GROUND,
+            ONGROUND_PROBABILITY,
+            ANOMALY_SCORE,
+            IS_ANOMALY,
+            WINDOW_START
+        FROM gold_ml_predictions
+        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM gold_ml_predictions)
+    """)
+
+
+@st.cache_data(ttl=300)
+def load_ml_country_summary() -> pd.DataFrame:
+    return run_query("""
+        SELECT
+            ORIGIN_COUNTRY,
+            COUNT(*)                                            AS TOTAL_FLIGHTS,
+            SUM(CASE WHEN IS_ANOMALY     THEN 1 ELSE 0 END)    AS ANOMALY_COUNT,
+            SUM(CASE WHEN PREDICTED_ON_GROUND THEN 1 ELSE 0 END) AS PREDICTED_ON_GROUND_COUNT,
+            AVG(ONGROUND_PROBABILITY)                           AS AVG_ONGROUND_PROB,
+            AVG(ANOMALY_SCORE)                                  AS AVG_ANOMALY_SCORE
+        FROM gold_ml_predictions
+        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM gold_ml_predictions)
+        GROUP BY ORIGIN_COUNTRY
+        ORDER BY ANOMALY_COUNT DESC
+        LIMIT 25
+    """)
+
+
+with st.spinner("Fetching ML predictions from Snowflake..."):
+    df_ml,         err_ml         = safe_load(load_ml_predictions)
+    df_ml_country, err_ml_country = safe_load(load_ml_country_summary)
+
+# ── ML KPI tiles ──────────────────────────────────────────────────────────────
+
+ml_k1, ml_k2, ml_k3, ml_k4 = st.columns(4)
+
+with ml_k1:
+    if not df_ml.empty:
+        st.metric("Flights scored", f"{len(df_ml):,}")
+    else:
+        st.metric("Flights scored", "—")
+
+with ml_k2:
+    if not df_ml.empty:
+        n_anomalies = int(df_ml["IS_ANOMALY"].sum())
+        pct = n_anomalies / len(df_ml) * 100
+        st.metric("Anomalies detected", f"{n_anomalies:,}", delta=f"{pct:.1f}%")
+    else:
+        st.metric("Anomalies detected", "—")
+
+with ml_k3:
+    if not df_ml.empty:
+        n_ground = int(df_ml["PREDICTED_ON_GROUND"].sum())
+        st.metric("Predicted on-ground", f"{n_ground:,}")
+    else:
+        st.metric("Predicted on-ground", "—")
+
+with ml_k4:
+    if not df_ml.empty:
+        avg_prob = df_ml["ONGROUND_PROBABILITY"].mean()
+        st.metric("Avg on-ground probability", f"{avg_prob:.3f}")
+    else:
+        st.metric("Avg on-ground probability", "—")
+
+st.divider()
+
+ml_col1, ml_col2 = st.columns(2)
+
+# ── Anomaly count by country ──────────────────────────────────────────────────
+with ml_col1:
+    st.subheader("Anomalies by country (latest window)")
+    if err_ml_country:
+        st.warning(f"Could not load ML country data: {err_ml_country}")
+    elif df_ml_country.empty:
+        st.info("No ML country data available.")
+    else:
+        fig_ml_bar = px.bar(
+            df_ml_country.sort_values("ANOMALY_COUNT", ascending=True).head(20),
+            x="ANOMALY_COUNT",
+            y="ORIGIN_COUNTRY",
+            orientation="h",
+            color="AVG_ANOMALY_SCORE",
+            color_continuous_scale="Reds_r",   # lower (more anomalous) = darker red
+            labels={
+                "ANOMALY_COUNT":    "Anomalous flights",
+                "ORIGIN_COUNTRY":   "Country",
+                "AVG_ANOMALY_SCORE": "Avg anomaly score",
+            },
+            title="",
+        )
+        fig_ml_bar.update_layout(
+            coloraxis_showscale=True,
+            margin=dict(l=0, r=0, t=8, b=0),
+            height=420,
+        )
+        st.plotly_chart(fig_ml_bar, use_container_width=True)
+
+# ── On-ground probability vs velocity scatter ─────────────────────────────────
+with ml_col2:
+    st.subheader("On-ground probability vs velocity")
+    if err_ml:
+        st.warning(f"Could not load ML predictions: {err_ml}")
+    elif df_ml.empty:
+        st.info("No ML prediction data available.")
+    else:
+        sample = df_ml.sample(min(2000, len(df_ml)), random_state=42)
+        fig_scatter = px.scatter(
+            sample,
+            x="VELOCITY",
+            y="ONGROUND_PROBABILITY",
+            color="PREDICTED_ON_GROUND",
+            color_discrete_map={True: "#f97316", False: "#3b82f6"},
+            symbol="IS_ANOMALY",
+            symbol_map={True: "x", False: "circle"},
+            opacity=0.65,
+            labels={
+                "VELOCITY":             "Velocity (m/s)",
+                "ONGROUND_PROBABILITY": "P(on-ground)",
+                "PREDICTED_ON_GROUND":  "Predicted on-ground",
+                "IS_ANOMALY":           "Anomaly flag",
+            },
+            hover_data=["ICAO24", "ORIGIN_COUNTRY", "BARO_ALTITUDE"],
+        )
+        fig_scatter.update_layout(
+            margin=dict(l=0, r=0, t=8, b=0),
+            height=420,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+# ── Top anomalous flights table ───────────────────────────────────────────────
+st.subheader("Top 20 most anomalous flights (latest window)")
+if err_ml:
+    st.warning(f"Could not load ML data: {err_ml}")
+elif df_ml.empty:
+    st.info("No ML data available.")
+else:
+    top_anomalies = (
+        df_ml[df_ml["IS_ANOMALY"]]
+        .sort_values("ANOMALY_SCORE", ascending=True)
+        .head(20)[
+            ["ICAO24", "ORIGIN_COUNTRY", "VELOCITY", "BARO_ALTITUDE",
+             "PREDICTED_ON_GROUND", "ONGROUND_PROBABILITY", "ANOMALY_SCORE"]
+        ]
+        .reset_index(drop=True)
+    )
+    if top_anomalies.empty:
+        st.success("✅ No anomalies flagged in the latest window.")
+    else:
+        st.dataframe(
+            top_anomalies.style.format({
+                "VELOCITY":             "{:.1f}",
+                "BARO_ALTITUDE":        "{:.0f}",
+                "ONGROUND_PROBABILITY": "{:.3f}",
+                "ANOMALY_SCORE":        "{:.4f}",
+            }).background_gradient(subset=["ANOMALY_SCORE"], cmap="Reds_r"),
+            use_container_width=True,
+        )

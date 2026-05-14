@@ -5,7 +5,7 @@ COMPOSE = docker compose
 AIRFLOW_EXEC = $(COMPOSE) exec airflow-webserver airflow
 
 up:
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --build
 
 down:
 	$(COMPOSE) down
@@ -47,6 +47,9 @@ trigger-transform:
 
 trigger-load:
 	$(AIRFLOW_EXEC) dags trigger flight_load
+
+trigger-ml:
+	$(AIRFLOW_EXEC) dags trigger flight_ml
 
 dag-list:
 	$(AIRFLOW_EXEC) dags list
