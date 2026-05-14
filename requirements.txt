@@ -15,8 +15,7 @@ python-dotenv
 ruff
 black
 dotenv
-
-
+pre-commit
 
 # Testing dependencies
 pytest>=8.0.0

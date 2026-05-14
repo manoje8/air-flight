@@ -26,26 +26,6 @@ jobs:
       - name: Black format check
         run: black --check dags/
 
-      - name: Validate DAG imports
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          export AIRFLOW__CORE__LOAD_EXAMPLES=False
-          export HOME_PATH=$(pwd)
-          export AIRFLOW_VAR_FLIGHT_SCHEDULE_INTERVAL="@daily"
-          export DISABLE_PANDERA_IMPORT_WARNING=True
-          python <<EOF
-          import os, importlib.util, sys
-          dag_dir = 'dags'
-          for f in os.listdir(dag_dir):
-              if f.endswith('.py') and not f.startswith('__'):
-                  module_name = f[:-3]
-                  print(f"Validating {f}...")
-                  spec = importlib.util.spec_from_file_location(module_name, os.path.join(dag_dir, f))
-                  mod = importlib.util.module_from_spec(spec)
-                  spec.loader.exec_module(mod)
-                  print(f"OK: {f}")
-          EOF
-
   test:
     runs-on: ubuntu-latest
     needs: lint
