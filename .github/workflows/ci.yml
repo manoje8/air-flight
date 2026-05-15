@@ -56,7 +56,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest pytest-airflow
+        run: pip install -r requirements.txt pytest pytest-airflow psycopg2-binary
 
       - name: Init Airflow DB
         run: airflow db migrate

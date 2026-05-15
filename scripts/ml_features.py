@@ -29,8 +29,6 @@ from sklearn.preprocessing import LabelEncoder
 
 logger = logging.getLogger(__name__)
 
-# ── Column definitions ────────────────────────────────────────────────────────
-
 FEATURE_COLS = [
     "velocity",
     "baro_altitude",
@@ -117,14 +115,14 @@ def engineer_features(
     """
     df = df.copy()
 
-    # ── Drop rows with no positional data and no ground flag ──────────────────
+    # Drop rows with no positional data and no ground flag
     required = ["on_ground"]
     df = df.dropna(subset=required)
 
     if df.empty:
         raise ValueError("No valid rows after dropping nulls on required columns.")
 
-    # ── Impute numeric nulls ─────────────────────────────────────────────────
+    # Impute numeric nulls
     vel_median = df["velocity"].median()
     impute_values = {**_IMPUTE, "velocity": vel_median}
 
@@ -132,11 +130,11 @@ def engineer_features(
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(fill)
 
-    # ── Grid bucketing for lat / lon ─────────────────────────────────────────
+    # Grid bucketing for lat / lon
     df["lat_bucket"] = (df["latitude"].fillna(0.0) / 10).round(0) * 10
     df["lon_bucket"] = (df["longitude"].fillna(0.0) / 10).round(0) * 10
 
-    # ── Country encoding ─────────────────────────────────────────────────────
+    # Country encoding
     country_series = df["origin_country"].fillna("Unknown").astype(str)
 
     if label_encoder is None or fit_encoder:
@@ -152,10 +150,10 @@ def engineer_features(
 
     df["country_encoded"] = label_encoder.transform(country_safe)
 
-    # ── Assemble feature matrix ───────────────────────────────────────────────
+    # Assemble feature matrix
     X = df[FEATURE_COLS].astype(float)
 
-    # ── Target vector ─────────────────────────────────────────────────────────
+    # Target vector
     y: np.ndarray | None = None
     if TARGET_COL in df.columns:
         y = df[TARGET_COL].astype(bool).astype(int).values
