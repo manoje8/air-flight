@@ -371,7 +371,7 @@ else:
         st.plotly_chart(fig_gnd, use_container_width=True)
 
 
-# ── ML Insights ───────────────────────────────────────────────────────────────
+# ML Insights
 
 st.divider()
 st.subheader("🤖 ML Insights — On-Ground Prediction & Anomaly Detection")
@@ -383,7 +383,8 @@ st.caption(
 
 @st.cache_data(ttl=300)
 def load_ml_predictions() -> pd.DataFrame:
-    return run_query("""
+    schema = os.getenv("SNOWFLAKE_SCHEMA", "FLIGHT_SCHEMA")
+    return run_query(f"""
         SELECT
             ICAO24,
             ORIGIN_COUNTRY,
@@ -394,34 +395,34 @@ def load_ml_predictions() -> pd.DataFrame:
             ANOMALY_SCORE,
             IS_ANOMALY,
             WINDOW_START
-        FROM gold_ml_predictions
-        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM gold_ml_predictions)
+        FROM {schema}.GOLD_ML_PREDICTIONS
+        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM {schema}.GOLD_ML_PREDICTIONS)
     """)
 
 
 @st.cache_data(ttl=300)
 def load_ml_country_summary() -> pd.DataFrame:
-    return run_query("""
+    schema = os.getenv("SNOWFLAKE_SCHEMA", "FLIGHT_SCHEMA")
+    return run_query(f"""
         SELECT
             ORIGIN_COUNTRY,
-            COUNT(*)                                            AS TOTAL_FLIGHTS,
-            SUM(CASE WHEN IS_ANOMALY     THEN 1 ELSE 0 END)    AS ANOMALY_COUNT,
+            COUNT(*)                                              AS TOTAL_FLIGHTS,
+            SUM(CASE WHEN IS_ANOMALY          THEN 1 ELSE 0 END) AS ANOMALY_COUNT,
             SUM(CASE WHEN PREDICTED_ON_GROUND THEN 1 ELSE 0 END) AS PREDICTED_ON_GROUND_COUNT,
-            AVG(ONGROUND_PROBABILITY)                           AS AVG_ONGROUND_PROB,
-            AVG(ANOMALY_SCORE)                                  AS AVG_ANOMALY_SCORE
-        FROM gold_ml_predictions
-        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM gold_ml_predictions)
+            AVG(ONGROUND_PROBABILITY)                            AS AVG_ONGROUND_PROB,
+            AVG(ANOMALY_SCORE)                                   AS AVG_ANOMALY_SCORE
+        FROM {schema}.GOLD_ML_PREDICTIONS
+        WHERE WINDOW_START = (SELECT MAX(WINDOW_START) FROM {schema}.GOLD_ML_PREDICTIONS)
         GROUP BY ORIGIN_COUNTRY
         ORDER BY ANOMALY_COUNT DESC
         LIMIT 25
     """)
 
-
 with st.spinner("Fetching ML predictions from Snowflake..."):
     df_ml,         err_ml         = safe_load(load_ml_predictions)
     df_ml_country, err_ml_country = safe_load(load_ml_country_summary)
 
-# ── ML KPI tiles ──────────────────────────────────────────────────────────────
+# ML KPI tiles
 
 ml_k1, ml_k2, ml_k3, ml_k4 = st.columns(4)
 
@@ -457,7 +458,7 @@ st.divider()
 
 ml_col1, ml_col2 = st.columns(2)
 
-# ── Anomaly count by country ──────────────────────────────────────────────────
+# Anomaly count by country
 with ml_col1:
     st.subheader("Anomalies by country (latest window)")
     if err_ml_country:
@@ -486,7 +487,7 @@ with ml_col1:
         )
         st.plotly_chart(fig_ml_bar, use_container_width=True)
 
-# ── On-ground probability vs velocity scatter ─────────────────────────────────
+# On-ground probability vs velocity scatter
 with ml_col2:
     st.subheader("On-ground probability vs velocity")
     if err_ml:
@@ -519,7 +520,7 @@ with ml_col2:
         )
         st.plotly_chart(fig_scatter, use_container_width=True)
 
-# ── Top anomalous flights table ───────────────────────────────────────────────
+# Top anomalous flights table
 st.subheader("Top 20 most anomalous flights (latest window)")
 if err_ml:
     st.warning(f"Could not load ML data: {err_ml}")

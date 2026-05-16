@@ -1,11 +1,16 @@
 # Makefile
-.PHONY: up down shutdown restart logs test lint format shell db-migrate worker-scale
+.PHONY: up down shutdown restart ps \
+		logs logs-worker logs-scheduler logs-webserver \
+		test lint format shell db-migrate worker-scale \
+		ui stream-run
+
 
 COMPOSE = docker compose
 AIRFLOW_EXEC = $(COMPOSE) exec airflow-webserver airflow
 
+
 up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) up -d
 
 down:
 	$(COMPOSE) down
@@ -16,22 +21,24 @@ shutdown:
 restart:
 	$(COMPOSE) restart
 
+ps:
+	$(COMPOSE) ps
+
+# Logs
+
 logs:
 	$(COMPOSE) logs -f --tail=100
 
 logs-worker:
-	$(COMPOSE) logs -f airflow-webserver
+	$(COMPOSE) logs -f --tail=100 airflow-worker
 
-lint:
-	ruff check dags/ plugins/ tests/ scripts/ utils
-	black --check dags/ plugins/ tests/ scripts/ utils
+logs-scheduler:
+	$(COMPOSE) logs -f --tail=100 airflow-scheduler
 
-format:
-	ruff check --fix dags/ plugins/ tests/ scripts/ utils
-	black dags/ plugins/ tests/ scripts/ utils
+logs-webserver:
+	$(COMPOSE) logs -f --tail=100 airflow-webserver
 
-test:
-	pytest tests/ -v --tb=short
+# Airflow Commands
 
 db-migrate:
 	$(AIRFLOW_EXEC) db migrate
@@ -58,7 +65,27 @@ worker-scale:
 	$(COMPOSE) up -d --scale airflow-worker=$(n)
 	# usage: make worker-scale n=4
 
+
+# Code Quality
+
+lint:
+	ruff check dags/ plugins/ tests/ scripts/ utils
+	black --check dags/ plugins/ tests/ scripts/ utils
+
+format:
+	ruff check --fix dags/ plugins/ tests/ scripts/ utils
+	black dags/ plugins/ tests/ scripts/ utils
+
+test:
+	pytest tests/ -v --tb=short
+
+ci: lint test
+
+stream-run:
+	streamlit run dashboard/app.py
+
 flower:
 	open http://localhost:5555
 
-ci: lint test
+ui:
+	open http://localhost:8080

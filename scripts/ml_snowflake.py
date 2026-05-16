@@ -140,10 +140,9 @@ class MLSnowflakeLoader:
 
             # Prepare DataFrame
             df = df.rename(columns=_RENAME_MAP)
-            df["LOAD_TIME"] = datetime.now(timezone.utc)
-            df["WINDOW_START"] = pd.to_datetime(
-                df["WINDOW_START"], utc=True
-            ).dt.tz_localize(None)
+            df["LOAD_TIME"] = datetime.now(timezone.utc).replace(tzinfo=None)
+            ws = pd.to_datetime(df["WINDOW_START"], utc=True)
+            df["WINDOW_START"] = ws.dt.tz_localize(None).dt.to_pydatetime()
 
             df_to_load = df[[c for c in ML_COLUMNS if c in df.columns]]
 
