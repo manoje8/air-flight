@@ -29,9 +29,10 @@ def run_bronze_ingestion(**context) -> str:
     path = Path(f"/opt/airflow/data/bronze/flight_{timestamp}.json")
 
     if path.exists():
+        file_size_kb = path.stat().st_size / 1024
         logger.info(
-            "Bronze file already exists for interval %s — skipping ingestion (idempotent).",
-            timestamp,
+            "Bronze file already exists for interval %s (%.2f KB) — skipping ingestion (idempotent).",
+            timestamp, file_size_kb
         )
         if ti:
             ti.xcom_push(key="bronze_file", value=str(path))
@@ -58,5 +59,7 @@ def run_bronze_ingestion(**context) -> str:
 
     if ti:
         ti.xcom_push(key="bronze_file", value=str(path))
-    logger.info("Bronze file written: %s", path)
+
+    file_size_kb = path.stat().st_size / 1024
+    logger.info("Bronze file written: %s (%.2f KB, %d rows/states)", path, file_size_kb, len(data["states"]))
     return str(path)

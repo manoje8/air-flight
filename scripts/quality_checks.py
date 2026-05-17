@@ -23,6 +23,7 @@ A SchemaError is raised (failing the DAG task) if any check is violated.
 """
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 from pandera import Column, DataFrameSchema, Check
@@ -121,7 +122,8 @@ def run_quality_check(silver_file: str, **context) -> str:
         ValueError             — if Silver file path is missing from XCom.
     """
 
-    logger.info("Running data quality checks on: %s", silver_file)
+    file_size_kb = Path(silver_file).stat().st_size / 1024 if Path(silver_file).exists() else 0
+    logger.info("Running data quality checks on: %s (%.2f KB)", silver_file, file_size_kb)
 
     df = pd.read_csv(
         silver_file,
